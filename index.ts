@@ -1,5 +1,6 @@
 import * as k8s from "@pulumi/kubernetes";
 import * as pulumi from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
 
 const config = new pulumi.Config();
 const infraStackName = config.require("infraStackName");
@@ -66,6 +67,9 @@ const blog = new k8s.core.v1.Service(
         provider: provider,
     }
 );
+
+const assets = new aws.s3.Bucket("blog-assets");
+const backups = new aws.s3.Bucket("blog-backups");
 
 export const name = deployment.metadata.apply(m => m.name);
 export const ingress = blog.status.apply(status => status.loadBalancer.ingress[0]);
