@@ -1,0 +1,3 @@
+config:
+  aws:region: us-west-2
+  blog:infraStackName: nunciato/infra-staging
