@@ -1,19 +1,19 @@
 import * as k8s from "@pulumi/kubernetes";
 import * as pulumi from "@pulumi/pulumi";
-import * as aws from "@pulumi/aws";
 
 const config = new pulumi.Config();
 const infraStackName = config.require("infraStackName");
-const appName = "blog";
 
+const appName = "blog";
 const appLabels = {
     app: appName
 };
 
-const kubeconfig = new pulumi.StackReference("infraStackName", { name: infraStackName })
-    .getOutput("kubeconfig");
+const infraStack = new pulumi.StackReference("infraStackName", { name: infraStackName });
+const kubeconfig = infraStack.getOutput("kubeconfig");
+const dbConfig = infraStack.getOutput("dbConfig");
 
-const provider = new k8s.Provider("provider", {
+const k8sProvider = new k8s.Provider("provider", {
     kubeconfig: kubeconfig.apply(config => JSON.stringify(config)),
 });
 
@@ -34,14 +34,23 @@ const deployment = new k8s.apps.v1.Deployment(
                         {
                             name: "ghost",
                             image: "ghost",
+                            env: [
+                                { name: "database__client", value: dbConfig.apply(c => c.blog.client) },
+                                { name: "database__connection__host", value: dbConfig.apply(c => c.blog.host) },
+                                { name: "database__connection__port", value: dbConfig.apply(c => c.blog.port.toString()) },
+                                { name: "database__connection__user", value: dbConfig.apply(c => c.blog.user) },
+                                { name: "database__connection__password", value: dbConfig.apply(c => c.blog.password) },
+                                { name: "database__connection__database", value: dbConfig.apply(c => c.blog.database) },
+                            ]
                         }
                     ],
+
                 },
             },
         },
     },
     {
-        provider: provider,
+        provider: k8sProvider,
     }
 );
 
@@ -64,12 +73,8 @@ const blog = new k8s.core.v1.Service(
         },
     },
     {
-        provider: provider,
+        provider: k8sProvider,
     }
 );
 
-const assets = new aws.s3.Bucket("blog-assets");
-const backups = new aws.s3.Bucket("blog-backups");
-
-export const name = deployment.metadata.apply(m => m.name);
 export const ingress = blog.status.apply(status => status.loadBalancer.ingress[0]);
